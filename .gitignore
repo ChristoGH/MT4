@@ -1,0 +1,10 @@
+*.dat
+*.ex4
+*.bmp
+*.dll
+*.log
+
+images/
+Logs/
+Libraries/
+Presets/
