@@ -59,6 +59,8 @@ void OnTick(void)
    double    previous_close= iClose(Symbol(),PERIOD_M1,1);
    int          i = Bars;
    int          nDayTrades=0;
+   int          nBuyTrades=0;
+   int          nSellTrades=0;
    int          trade;
    int          cnt,ticket;
    int          total=0;//,total;
@@ -73,16 +75,23 @@ void OnTick(void)
    bool       valid_sell_trigger=false;
    datetime CurrentDay =iTime(Symbol(),PERIOD_D1,0);
    datetime PreviousDay =iTime(Symbol(),PERIOD_D1,1);
-
+   datetime start_time=CurrentDay+(60*60*StartHour)+(60*StartMinute);
+   datetime end_time=CurrentDay+(60*60*EndHour)+(60*EndMinute);
+   int          start_shift=iBarShift(Symbol(),PERIOD_M1,start_time);
+   double    iHi=iHighest(Symbol(),PERIOD_M1,MODE_HIGH,start_shift,0);
+   double    iLo=iHighest(Symbol(),PERIOD_M1,MODE_LOW,start_shift,0);   
+  //===================================================================================================
   //  Define in_trade_window, a boolean operator which is true only if we are inside the hours defined by StartHour and EndHour
   //  To do: convert all to seconds, so that comparison will include StartMinute
 
-   if((Hour()-1)>=StartHour  && (Hour()-1)<=EndHour)
+   if(TimeLocal()>=start_time&&TimeLocal()<=end_time)
     in_trade_window=true;
 
   //  Define AFTER trade window, CLOSE ALL positions:    
-   if((Hour()-1)>=EndHour+1)
+   if(TimeLocal()>end_time)
     after_trade_window=true;
+    
+Print("start_time: ",TimeToStr(start_time,TIME_DATE|TIME_SECONDS),"; end_time: ", TimeToStr(end_time,TIME_DATE|TIME_SECONDS));
 //-------------------------------------------------------------------------------------------------------
 // https://docs.mql4.com/series/ihighest
 //--- calculating the highest value on the 20 consecutive bars in the range
@@ -132,8 +141,8 @@ void OnTick(void)
      }
 // ======================================================================================
 // The following is DEPRECATED.  These values are no longer required and is overwritten further down:
-resistance=iCustom(NULL,0,"Support and Resistance (Barry)",0,0);
-support=iCustom(NULL,0,"Support and Resistance (Barry)",1,0);
+// resistance=iCustom(NULL,0,"Support and Resistance (Barry)",0,0);
+// support=iCustom(NULL,0,"Support and Resistance (Barry)",1,0);
 //=======================================================================================
 //Print("CurrentDay: ",TimeToStr(CurrentDay,TIME_DATE|TIME_SECONDS), ";  Barry support =", support, ";  Barry resistance =", resistance);    
 
@@ -215,7 +224,6 @@ while(i >0&&CountLows<6)
 // Print("CurrentDay: ",TimeToStr(CurrentDay,TIME_DATE|TIME_SECONDS),"; Current Resistance: ", HighArray[1], "; Previous Resistance: ", HighArray[2]);
 //   
 
-   
  // ======================================================================================
  // Calculate here the number of completed trades for the CURRENT day and CURRENT sumbol.  Starting at the most recent trade it goes back until OrderCloseTime()<CurrentDay.
 
@@ -231,17 +239,17 @@ nDayTrades=0;
          {
           nDayTrades++;
           InTradeAllowance=MaxNumberDayTrades>nDayTrades;
-//          order_type=OrderType(); // order_type = 0, bought;  order_type = 1, sold; 
-//          order_stoploss =OrderStopLoss();
-//          
-//          if(order_type==0)
-//          {
-//          current_buy_stoploss = order_stoploss;
-//          }
-//          if(order_type==1)
-//          {
-//          current_sell_stoploss = order_stoploss;
-//          }
+          order_type=OrderType(); // order_type = 0, bought;  order_type = 1, sold; 
+          order_stoploss =OrderStopLoss();
+        
+          if(order_type==0)
+          {
+          nBuyTrades++;
+          }
+          if(order_type==1)
+          {
+          nSellTrades++;
+          }
          };
         //if(OOT>0) Print("OrdersTotal: ",hstTotal,"; Close time for the order:  ",trade," is: ",TimeToStr(OOT,TIME_DATE|TIME_SECONDS), );
        }
@@ -300,9 +308,8 @@ else
 }
 }
 }
+
 Print("CurrentDay: ",TimeToStr(CurrentDay,TIME_DATE|TIME_SECONDS), "; Symbol: ",Symbol(),"; previous_close: ",previous_close,"; current support: ",support,"; support level 0: ",LowArray[0],"; support level 1: ",LowArray[1],"; current resistance: ",resistance, ";  resistance level 0: ", HighArray[0],   ";  resistance level 1: ",HighArray[1]);    
-
-
 
 //=========================================================================================
 // If 
