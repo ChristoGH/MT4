@@ -5,16 +5,20 @@
 //+------------------------------------------------------------------------------------------------------------------+
 #property copyright   "Christo Strydom"
 #property link        "christo.w.strydom@gmail.com"
-extern int EAMagic = 16384; //EA's magic number parameter
+extern int EAMagic = 17384; //EA's magic number parameter
 input double TakeProfit    =200; // 2000 for USDZAR
 input double Lots          =0.1; // Trade size
 input double StopLoss      =300; // Hard stop, 3000 for USDZAR, The stop loss is not MANAGED
 input double Slippage      =3;
 input double TrailingStop  =0; // 0 for NO trailing stop
-input int StartHour        =8; // Start strategy AFTER this hour
-input int StartMinute      =0;
-input int EndHour          =14; // Start strategy AFTER this hour
-input int EndMinute        =0;
+input int Trade_StartHour        =8; // Start strategy AFTER this hour
+input int Trade_StartMinute      =0;
+input int Trade_EndHour          =14; // Start strategy AFTER this hour
+input int Trade_EndMinute        =0;
+input int PreviousDay_Strat_StartHour        =8; // Start strategy AFTER this hour
+input int PreviousDay_Strat_StartMinute        =0; // Start strategy AFTER this hour
+input int PreviousDay_Strat_EndHour        =20; // Start strategy AFTER this hour
+input int PreviousDay_Strat_EndMinute        =0; // Start strategy AFTER this hour
 input int MaxNumberDayTrades = 1;
 input int SnRStartHour = 1;
 input int SnREndHour = 24;
@@ -24,13 +28,6 @@ double resistance; // =iCustom(NULL,0,"Support and Resistance (Barry)",0,0);
 double support; // =iCustom(NULL,0,"Support and Resistance (Barry)",1,0);
 double previous_resistance;
 double previous_support;
-double Previous_Day_High=iHigh(Symbol(),PERIOD_D1,1);
-double Previous_Day_Low=iLow(Symbol(),PERIOD_D1,1);
-// Calculate tome of daay values:
-
-//datetime ctm;
-
-
 
 
 // string var1;
@@ -56,42 +53,89 @@ double Previous_Day_Low=iLow(Symbol(),PERIOD_D1,1);
 
 void OnStart()
 {
-   string   s          = Symbol();
-   int        p           = Period();
-   datetime CurrentDay =iTime(Symbol(),PERIOD_D1,0); //t1          = D'2017.01.01';
-   datetime PreviousDay =iTime(Symbol(),PERIOD_D1,1); //t2          = D'2017.03.01';
-   datetime SnRStartTime = PreviousDay + SnRStartHour * 60 *60;
-   datetime SnREndTime = PreviousDay + SnREndHour * 60 *60;
-   int      SnRStartTime_shift    = iBarShift(s,p,SnRStartTime);
-   int      SnREndTime_shift    = iBarShift(s,p,SnREndTime);
-   int      bar_count   = SnRStartTime_shift-SnREndTime_shift;
-   int      high_shift  = iHighest(s,p,MODE_HIGH,bar_count,SnREndTime_shift);
-   int      low_shift   = iLowest(s,p,MODE_LOW,bar_count,SnREndTime_shift);
-   double   high        = iHigh(s,p,high_shift);
-   double   low         = iLow(s,p,low_shift);
-   Print("For the previous day, from ",TimeToStr(SnRStartTime,TIME_DATE|TIME_SECONDS), " to ", TimeToStr(SnREndTime,TIME_DATE|TIME_SECONDS),", the HIGH is = ",high," and the LOW is = ",low);
+
 }
 
 void OnTick(void)
   {
-   int nDayTrades=0;
-   int trade;
+  //  In this code section we need to find the high and low between two time points as defined by the previous day start of the strategy
+   string      StratSymbol          = Symbol();
+   int          StratPeriod           = Period();
+   datetime PreviousDay =iTime(Symbol(),PERIOD_D1,1);  // The start time 00:00:00 of the PREVIOUS day   
+   datetime SnRStartTime = PreviousDay + PreviousDay_Strat_StartHour * 60 *60+PreviousDay_Strat_StartMinute*60;
+   datetime SnREndTime = PreviousDay + PreviousDay_Strat_EndHour * 60 *60+PreviousDay_Strat_EndMinute*60;
+   int          SnRStartTime_shift   = iBarShift(StratSymbol,StratPeriod,SnRStartTime); //This is the index of the bar corresponding toSnRStartTime.
+   int          SnREndTime_shift    = iBarShift(StratSymbol,StratPeriod,SnREndTime); //This is the index of the bar corresponding SnREndTime.
+   int          bar_count   = SnRStartTime_shift-SnREndTime_shift; // The number of bars between SnREndTime_shift and SnRStartTime_shift
+   int          high_shift  = iHighest(StratSymbol,StratPeriod,MODE_HIGH,bar_count,SnREndTime_shift); // This is the shift in bars to find the maximum value starting from SnREndTime_shift going back bar_count number of bars but no further than SnRStartTime.
+   int          low_shift   = iLowest(StratSymbol,StratPeriod,MODE_LOW,bar_count,SnREndTime_shift); // This is the shift in bars to find the maximum value starting from SnREndTime_shift going back bar_count number of bars but no further than SnRStartTime..
+   double    StratHigh        = High[high_shift];
+   double    StratLow         = Low[low_shift];//iLow(StratSymbol,StratPeriod,low_shift);
+
+   Print("Period ", Period());
+   Print("For the previous day, from ",TimeToStr(SnRStartTime,TIME_DATE|TIME_SECONDS), " to ", TimeToStr(SnREndTime,TIME_DATE|TIME_SECONDS),", the HIGH is = ",StratHigh," and the LOW is = ",StratLow);  
+
+   int    nDayTrades=0;
+   int    trade;
    int    cnt,ticket;
    int    total=0;//,total;
    int    symbol_total=0;//,total;
-   bool   in_trade_window=false;
-   bool   after_trade_window=false;
-   datetime CurrentDay =iTime(Symbol(),PERIOD_D1,0);
-   datetime PreviousDay =iTime(Symbol(),PERIOD_D1,1);
-   bool InTradeAllowance=true;  // InTradeAllowance is set to true.  It will only be set false once nDayTrades>=MaxNumberDayTrades
-  //  Define in trade window, good for trading:
-   // Print(" Current minute is: ", Minute(), " Current hour is: ", Hour(), "; Current Day: ", CurrentDay);
-   if((Hour()-1)>=StartHour  && (Hour()-1)<=EndHour)
-    in_trade_window=true;
 
-  //  Define AFTER trade window, CLOSE ALL positions:    
-   if((Hour()-1)>=EndHour+1)
-    after_trade_window=true;
+   bool InTradeAllowance=true;  // InTradeAllowance is set to true.  It will only be set false once nDayTrades>=MaxNumberDayTrades
+  //===================================================================================================
+  //  Define in_trade_window, a boolean operator which is true only if we are inside the hours defined by StartHour and EndHour
+  //  To do: convert all to seconds, so that comparison will include StartMinute
+//Print("Current bar for Symbol() H1: ",iTime(Symbol(),PERIOD_M1,start_shift), "; TimeToStr(start_time,TIME_DATE|TIME_SECONDS): ",TimeToStr(start_time,TIME_DATE|TIME_SECONDS), "; start_shift: ", start_shift, "; ",  iOpen(Symbol(),PERIOD_M1,start_shift),", ",
+//                                      iHigh(Symbol(),PERIOD_M1,start_shift),", ",  iLow(Symbol(),PERIOD_M1,start_shift),", ",
+//                                      iClose(Symbol(),PERIOD_M1,start_shift),", ", iVolume(Symbol(),PERIOD_M1,start_shift),
+//                                      "; period_high: ",iHigh(Symbol(),PERIOD_M1,iHi),
+//                                       "; period_low: ",iLow(Symbol(),PERIOD_M1,iLo));
+
+//int result =trade_window(start_time,end_time);
+datetime current_day_time =iTime(Symbol(),PERIOD_D1,0);  // The start time 00:00:00 of the CURRENT day
+datetime start_time=current_day_time+(60*60*Trade_StartHour)+(60*Trade_StartMinute);
+datetime end_time=current_day_time+(60*60*Trade_EndHour)+(60*Trade_EndMinute);
+int          start_shift=iBarShift(Symbol(),PERIOD_M1,start_time-60);  // 
+int          day_shift=iBarShift(Symbol(),PERIOD_M1,current_day_time);  // Number of 'shifts' of the current bar type to the start of the day
+int          in_trade_shift_hi=iHighest(Symbol(),PERIOD_M1,MODE_HIGH,start_shift,1); // Number of shifts  from current bar to HIGHEST bar in trade window
+int          in_trade_shift_lo=iLowest(Symbol(),PERIOD_M1,MODE_LOW,start_shift,1); // Number of shifts  from current bar to LOWEST bar in trade window
+int          premarket_shift_hi=iHighest(Symbol(),PERIOD_M1,MODE_HIGH,day_shift,start_shift); // Number of shifts from current bar to HIGHEST bar in pre market window
+int          premarket_shift_lo=iLowest(Symbol(),PERIOD_M1,MODE_LOW,day_shift,start_shift); //  Number of shifts from current bar to LOWEST bar in pre market window 
+bool        in_trade_window=false;
+bool        after_trade_window=false;
+double    period_high, period_low;  
+double    previous_close= iClose(Symbol(),PERIOD_M1,1);
+double    previous_high= iHigh(Symbol(),PERIOD_M1,1);
+double    previous_low= iLow(Symbol(),PERIOD_M1,1);         
+
+if(TimeLocal()>=start_time&&TimeLocal()<=end_time)
+ in_trade_window=true;
+
+//  Define AFTER trade window, CLOSE ALL positions:    
+if(TimeLocal()>end_time)
+ after_trade_window=true;
+ 
+if((in_trade_shift_hi!=-1)&&(in_trade_window||after_trade_window)) 
+{
+period_high=iHigh(Symbol(),PERIOD_M1,in_trade_shift_hi);
+} 
+
+if((in_trade_shift_hi==-1)||(!in_trade_window)) 
+{
+period_high=iHigh(Symbol(),PERIOD_M1,premarket_shift_hi);
+}
+
+if((in_trade_shift_lo!=-1)||(in_trade_window||after_trade_window))
+{
+period_low=iLow(Symbol(),PERIOD_M1,in_trade_shift_lo);
+} 
+
+if((in_trade_shift_hi==-1)||(!in_trade_window)) 
+{
+period_low=iLow(Symbol(),PERIOD_M1,premarket_shift_lo);
+}
+
+
 //-------------------------------------------------------------------------------------------------------
 // https://docs.mql4.com/series/ihighest
 //--- calculating the highest value on the 20 consecutive bars in the range
@@ -139,13 +183,11 @@ void OnTick(void)
       Print("TakeProfit less than 10");
       return;
      }
-//--- to simplify the coding and speed up access data are put into internal variables
-   resistance=iCustom(NULL,0,"Support and Resistance (Barry)",0,0);
-   support=iCustom(NULL,0,"Support and Resistance (Barry)",1,0);
-   
+  
  // ======================================================================================
  // Calculate here the number of completed trades for the CURRENT day.  Starting at the most recent trade it goes back until OrderCloseTime()<CurrentDay
 nDayTrades=0;
+ datetime CurrentDay =iTime(Symbol(),PERIOD_D1,0);  // The start time 00:00:00 of the CURRENT day   
  for(trade=OrdersHistoryTotal()-1;trade>=0;trade--)
     {
      //Print("Trade number: ", trade);
@@ -153,6 +195,8 @@ nDayTrades=0;
        {
          //EA_OrderOpenTime=OrderOpenTime();
          //EA_OrderCloseTime=OrderCloseTime();
+         if(OrderMagicNumber()==EAMagic)
+         {
          if((OrderCloseTime()>=CurrentDay)&&(OrderSymbol()==Symbol()))
          {
           nDayTrades++;
@@ -166,6 +210,7 @@ nDayTrades=0;
       InTradeAllowance=MaxNumberDayTrades<=nDayTrades;
       break;
      }
+     }
 //     if(MaxNumberDayTrades<=nDayTrades){
 //     break;
 //    }
@@ -175,28 +220,50 @@ nDayTrades=0;
 // Calculate the number of open trades for the current Symbol, this produces symbol_total which is not allowed to be > 1
 for(trade=OrdersTotal()-1;trade>=0;trade--)
 {
+  if(OrderMagicNumber()==EAMagic)
+  {
   if(!OrderSelect(trade,SELECT_BY_POS,MODE_TRADES))
 //  ctm=OrderOpenTime();
   //Print(" Trade: ",trade,"OrderOpenTime: ", TimeToStr(ctm,TIME_DATE|TIME_SECONDS));  
   continue;
-if(OrderSymbol()==Symbol())
-{
-  if((OrderType()==OP_SELL||OrderType()==OP_BUY) && OrderMagicNumber()==EAMagic)
-  //ctm=OrderOpenTime();
-  //Print(" Trade: ",trade,"OrderOpenTime: ", TimeToStr(ctm,TIME_DATE|TIME_SECONDS));
-  symbol_total++;
+   if(OrderSymbol()==Symbol())
+   {
+     if((OrderType()==OP_SELL||OrderType()==OP_BUY) && OrderMagicNumber()==EAMagic)
+     //ctm=OrderOpenTime();
+     //Print(" Trade: ",trade,"OrderOpenTime: ", TimeToStr(ctm,TIME_DATE|TIME_SECONDS));
+     symbol_total++;
+     }
   }
 }
 //=========================================================================================
 
 // Print("For symbol: ",Symbol()," --- are we in the trade window: ",in_trade_window,"; Trade allowance ok: ",nTradeAllowance, "; MaxNumberDayTrades: ",MaxNumberDayTrades,"; Open Trades: ",symbol_total, "; nDayTrades: ",nDayTrades);
-Print("For symbol: ",Symbol()," in  trade window: ",in_trade_window,"; CurrentDay: ",TimeToStr(CurrentDay,TIME_DATE|TIME_SECONDS),"; PreviousDay: ",TimeToStr(PreviousDay,TIME_DATE|TIME_SECONDS), "; MaxNumberDayTrades: ",MaxNumberDayTrades,"; InTradeAllowance: ",InTradeAllowance, "; Open Trades: ",symbol_total, "; nDayTrades: ",nDayTrades);
+Print("For symbol: ",Symbol()," in  trade window: ",in_trade_window,"; CurrentDay: ",TimeToStr(CurrentDay,TIME_DATE|TIME_SECONDS),"; PreviousDay: ",TimeToStr(PreviousDay,TIME_DATE|TIME_SECONDS));
 // Print("symbol_total: ",symbol_total);
 // Print("Last Trade ", TimeToStr(ctm,TIME_DATE|TIME_SECONDS));
 // Print("Currency: ", Symbol(), "; OrdersTotal: ", total,"; symbol_total: ",symbol_total, "; Is symbol_total<1:  ",symbol_total<1,"; Is Bid<support: " , Bid<support, "; Is Ask>resistance: ",Ask>resistance, "; Are we in the trade window: ",in_trade_window);
 // Print("nTradeAllowance: ", nTradeAllowance);
+// ========================================================================================
+bool       valid_buy_trigger=false;
+bool       valid_sell_trigger=false;
+
+//  Calculate the valid triggers:
+//  For a SELL ask must be above resistance.
+//  We must be in the trade window.
+//  The previous bar must have CLOSED BELOW the resistance.
+//  Resistance is > 0.
+//  There are no OPEN positions.
+//  We are inside our trade allowance for the day
+valid_sell_trigger=Ask>StratHigh && in_trade_window && previous_high<StratHigh && StratHigh>0 && symbol_total<1 && InTradeAllowance && Ask > period_high;
+//  For a BUY, bid must be BELOW support..
+//  We must be in the trade window.
+//  The previous bar must have CLOSED ABOVE  the support.
+//  Support is > 0.
+//  There are no OPEN positions.
+//  We are inside our trade allowance for the day
+valid_buy_trigger=Bid<StratLow && in_trade_window && previous_low>StratLow && support>0 && symbol_total<1 && InTradeAllowance && Bid < period_low;
   
-   if(symbol_total<1&&InTradeAllowance)
+   if(valid_sell_trigger || valid_buy_trigger)
      {
       //--- no opened orders identified
      // Print(total
@@ -206,7 +273,7 @@ Print("For symbol: ",Symbol()," in  trade window: ",in_trade_window,"; CurrentDa
          return;
         }
       //--- check for long position (BUY) possibility
-      if(Ask>resistance && in_trade_window)
+     if(valid_sell_trigger)
         {
         //Print("SELL!");
          Print("Symbol: ",Symbol(),"; OPSELL: ",OP_SELL,"; Lots: ", Lots,"; Bid: ",Bid,"; Slippage: ",Slippage,"; stop los: ", Bid+StopLoss*Point,"; take profit: ",Bid-TakeProfit*Point,"AE Capital, S&R sample",16384,0);
@@ -221,7 +288,7 @@ Print("For symbol: ",Symbol()," in  trade window: ",in_trade_window,"; CurrentDa
          return;
         }
       //--- check for short position (SELL) possibility
-      if(Bid<support && in_trade_window)
+   if( valid_buy_trigger)
         {
         Print("BUY!");//---
         
