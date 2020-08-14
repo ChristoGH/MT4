@@ -109,6 +109,44 @@ if((in_trade_shift_hi==-1)||(!in_trade_window))
 period_low=iLow(Symbol(),PERIOD_M1,premarket_shift_lo);
 }
 
+
+//-------------------------------------------------------------------------------------------------------
+// https://docs.mql4.com/series/ihighest
+//--- calculating the highest value on the 20 consecutive bars in the range
+//--- from the 4th to the 23rd index inclusive on the current chart   
+
+
+// Print("Previous_Day_High: ",Previous_Day_High, "; Previous_Day_Low: ", Previous_Day_Low);
+   
+//  if(OrderSelect(0,SELECT_BY_POS,MODE_HISTORY)==true)
+//    {
+//     ctm=OrderOpenTime();
+//     // var1=TimeToStr(ctm,TIME_DATE|TIME_SECONDS);
+//     if(ctm>0) Print("Open time for the order OrdersTotal() ", TimeToStr(ctm,TIME_DATE|TIME_SECONDS));
+//     ctm=OrderCloseTime();
+//     if(ctm>0) Print("Close time for the order OrdersTotal() ", ctm);
+//    }
+//  else
+//    Print("OrderSelect failed error code is",GetLastError());
+    
+ //  if(OrderSelect(OrdersTotal()-1,SELECT_BY_POS,MODE_TRADES))
+//    {
+//     ctm=OrderOpenTime();
+//     if(ctm>0) Print("Open time for the order OrdersTotal() ", TimeToStr(ctm,TIME_DATE|TIME_SECONDS));
+//     ctm=OrderCloseTime();
+//     if(ctm>0) Print("Open time for the order OrdersTotal() ", TimeToStr(ctm,TIME_DATE|TIME_SECONDS));
+//    }
+//  else
+//    Print("OrderSelect failed error code is",GetLastError());
+   
+//---
+// initial data checks
+// it is important to make sure that the expert works with a normal
+// chart and the user did not make any mistakes setting external 
+// variables (Lots, StopLoss, TakeProfit, 
+// TrailingStop) in our case, we check TakeProfit
+// on a chart of less than 100 bars
+//---
    if(Bars<100)
      {
       Print("bars less than 100");
@@ -152,30 +190,183 @@ nDayTrades=0;
 //    }
     }
 // Print("For loop - nDayTrades: ",nDayTrades);
+//=========================================================================================
+// Calculate the number of open trades for the current Symbol, this produces symbol_total which is not allowed to be > 1
+for(trade=OrdersTotal()-1;trade>=0;trade--)
+{
+  if(OrderMagicNumber()==EAMagic)
+  {
+  if(!OrderSelect(trade,SELECT_BY_POS,MODE_TRADES))
+//  ctm=OrderOpenTime();
+  //Print(" Trade: ",trade,"OrderOpenTime: ", TimeToStr(ctm,TIME_DATE|TIME_SECONDS));  
+  continue;
+   if(OrderSymbol()==Symbol())
+   {
+     if((OrderType()==OP_SELL||OrderType()==OP_BUY) && OrderMagicNumber()==EAMagic)
+     //ctm=OrderOpenTime();
+     //Print(" Trade: ",trade,"OrderOpenTime: ", TimeToStr(ctm,TIME_DATE|TIME_SECONDS));
+     symbol_total++;
+     }
+  }
+}
+//=========================================================================================
+
+// Print("For symbol: ",Symbol()," --- are we in the trade window: ",in_trade_window,"; Trade allowance ok: ",nTradeAllowance, "; MaxNumberDayTrades: ",MaxNumberDayTrades,"; Open Trades: ",symbol_total, "; nDayTrades: ",nDayTrades);
+Print("For symbol: ",Symbol()," in  trade window: ",in_trade_window,"; CurrentDay: ",TimeToStr(CurrentDay,TIME_DATE|TIME_SECONDS),"; PreviousDay: ",TimeToStr(PreviousDay,TIME_DATE|TIME_SECONDS));
+// Print("symbol_total: ",symbol_total);
+// Print("Last Trade ", TimeToStr(ctm,TIME_DATE|TIME_SECONDS));
+// Print("Currency: ", Symbol(), "; OrdersTotal: ", total,"; symbol_total: ",symbol_total, "; Is symbol_total<1:  ",symbol_total<1,"; Is Bid<support: " , Bid<support, "; Is Ask>resistance: ",Ask>resistance, "; Are we in the trade window: ",in_trade_window);
+// Print("nTradeAllowance: ", nTradeAllowance);
+// ========================================================================================
+bool       valid_buy_trigger=false;
+bool       valid_sell_trigger=false;
+
+//  Calculate the valid triggers:
+//  For a SELL ask must be above resistance.
+//  We must be in the trade window.
+//  The previous bar must have CLOSED BELOW the resistance.
+//  Resistance is > 0.
+//  There are no OPEN positions.
+//  We are inside our trade allowance for the day
+valid_sell_trigger=Ask>StratHigh && in_trade_window && previous_high<StratHigh && StratHigh>0 && symbol_total<1 && InTradeAllowance && Ask > period_high;
+//  For a BUY, bid must be BELOW support..
+//  We must be in the trade window.
+//  The previous bar must have CLOSED ABOVE  the support.
+//  Support is > 0.
+//  There are no OPEN positions.
+//  We are inside our trade allowance for the day
+valid_buy_trigger=Bid<StratLow && in_trade_window && previous_low>StratLow && support>0 && symbol_total<1 && InTradeAllowance && Bid < period_low;
+
+  
+   if(valid_sell_trigger || valid_buy_trigger)
+     {
+      //--- no opened orders identified
+     // Print(total
+      if(AccountFreeMargin()<(1000*Lots))
+        {
+         Print("We have no money. Free Margin = ",AccountFreeMargin());
+         return;
+        }
+      //--- check for long position (BUY) possibility
+     if(valid_sell_trigger)
+        {
+        //Print("SELL!");
+         Print("Symbol: ",Symbol(),"; OPSELL: ",OP_SELL,"; Lots: ", Lots,"; Bid: ",Bid,"; Slippage: ",Slippage,"; stop los: ", Bid+StopLoss*Point,"; take profit: ",Bid-TakeProfit*Point,"AE Capital, S&R sample",16384,0);
+         ticket=OrderSend(Symbol(),OP_SELL,Lots,Bid,Slippage,Bid+StopLoss*Point,Bid-TakeProfit*Point,"AE Capital, S&R sample",16384,0,Red);
+         if(ticket>0)
+           {
+            if(OrderSelect(ticket,SELECT_BY_TICKET,MODE_TRADES))
+               Print("SELL order opened : ",OrderOpenPrice());
+           }
+         else
+            Print("Error opening SELL order : ",GetLastError());
+         return;
+        }
+      //--- check for short position (SELL) possibility
+   if( valid_buy_trigger)
+        {
+        Print("BUY!");//---
+        
+        ticket=OrderSend(Symbol(),OP_BUY,Lots,Ask,Slippage,Ask-StopLoss*Point,Ask+TakeProfit*Point,"AE Capital, S&R sample",16384,0,Green);
+        //--- ticket=OrderSend(Symbol(),OP_SELL,Lots,Bid,3,0,Bid-TakeProfit*Point,"S&R sample",16384,0,Red);
+         if(ticket>0)
+           {
+            if(OrderSelect(ticket,SELECT_BY_TICKET,MODE_TRADES))
+               Print("BUY order opened : ",OrderOpenPrice());
+           }
+         else
+            Print("Error opening BUY order : ",GetLastError());
+        }
+      //--- exit from the "no opened orders" block
+      return;
+     }
+//--- it is important to enter the market correctly, but it is more important to exit it correctly...   
+   for(cnt=0;cnt<total;cnt++)
+     {
+      if(!OrderSelect(cnt,SELECT_BY_POS,MODE_TRADES))
+         continue;
+      if(OrderType()<=OP_SELL &&   // check for opened position 
+         OrderSymbol()==Symbol())  // check for symbol
+        {
+         //--- long position is opened
+         if(OrderType()==OP_BUY)
+           {
+            //--- should it be closed?
+            // if(MacdCurrent>0 && MacdCurrent<SignalCurrent && MacdPrevious>SignalPrevious && 
+            //    MacdCurrent>(MACDCloseLevel*Point))
+            //   {
+            //    //--- close order and exit
+            //    if(!OrderClose(OrderTicket(),OrderLots(),Bid,3,Violet))
+            //       Print("OrderClose error ",GetLastError());
+            //    return;
+            //   }
+            //--- check for trailing stop
+            if(TrailingStop>0)
+              {
+               if(Bid-OrderOpenPrice()>Point*TrailingStop)
+                 {
+                  if(OrderStopLoss()<Bid-Point*TrailingStop)
+                    {
+                     //--- modify order and exit
+                     if(!OrderModify(OrderTicket(),OrderOpenPrice(),Bid-Point*TrailingStop,OrderTakeProfit(),0,Green))
+                        Print("OrderModify error ",GetLastError());
+                     return;
+                    }
+                 }
+              }
+              if (after_trade_window){              
+                ticket=OrderClose(OrderTicket(),Lots,Bid,Slippage,Red);
+                if(ticket>0)
+                  {
+                    if(OrderSelect(ticket,SELECT_BY_TICKET,MODE_TRADES))
+                      Print("Closed LONG position after trade window, SELL order ",OrderTicket(), " at ", Bid); 
+                  }
+                else {
+                      Print("Error closing LONG position : ",GetLastError());
+                    }
+
+                }
+           }
+         else // go to short position
+           {
+            //--- should it be closed?
+            // if(MacdCurrent<0 && MacdCurrent>SignalCurrent && 
+            //    MacdPrevious<SignalPrevious && MathAbs(MacdCurrent)>(MACDCloseLevel*Point))
+            //   {
+            //    //--- close order and exit
+            //    if(!OrderClose(OrderTicket(),OrderLots(),Ask,3,Violet))
+            //       Print("OrderClose error ",GetLastError());
+            //    return;
+            //   }
+            //--- check for trailing stop
+            if(TrailingStop>0)
+              {
+               if((OrderOpenPrice()-Ask)>(Point*TrailingStop))
+                 {
+                  if((OrderStopLoss()>(Ask+Point*TrailingStop)) || (OrderStopLoss()==0))
+                    {
+                     //--- modify order and exit
+                     if(!OrderModify(OrderTicket(),OrderOpenPrice(),Ask+Point*TrailingStop,OrderTakeProfit(),0,Red))
+                        Print("OrderModify error ",GetLastError());
+                     return;
+                    }
+                 }
+              }
+            if (after_trade_window){
+              ticket = OrderClose(OrderTicket(),Lots,Ask,Slippage,Red);
+              if(ticket>0)
+                {
+                  if(OrderSelect(ticket,SELECT_BY_TICKET,MODE_TRADES))
+                    Print("Close SHORT after trade window, buy back order ",OrderTicket(), " at ", Ask);; 
+                }
+              else {
+                    Print("Error CLOSING SHORT order : ",GetLastError());
+                  }
+
+              }
+           }
+        }
+     }
 
 
-// string var1;
-// double val;
-//---Here is a to do list:------------------------------------------------------
-//---https://docs.mql4.com/series/ibarshift
-//---datetime some_time=D'2004.03.21 12:00';
-//---int shift=iBarShift(Symbol(),PERIOD_M1,some_time);
-//---Print("index of the bar for the time ",TimeToStr(some_time)," is ",shift);
-
-//---https://www.mql5.com/en/forum/143602
-// datetime Last;
-// int TotalNumberOfOrders = OrdersHistoryTotal();   //  
-// for(int i = 0; i >=TotalNumberOfOrders - 1 ; i++)  //  
-//    {
-//    if(OrderSelect(i,SELECT_BY_POS,MODE_HISTORY)==false) continue; // falls Zeile leer
-//       {
-//       if(OrderType()==OP_BUY && OrderType()==OP_SELL ) {Last=OrderCloseTime(); Alert(OrderCloseTime());}
-//       }
-//    } 
-// Alert(TimeToStr(TimeCurrent(),TIME_DATE|TIME_SECONDS),"  Letzter Trade: ",Last);
-// }
-//double time_diff=0;
-//datetime current_time= iTime(Symbol(),PERIOD_M1,0);
-//time_diff=(current_time-iTime(Symbol(),0,index))/(60*60);
-//Print(" time_diff in seconds: ",time_diff, "; index: ", index,  "; Open[index]: ",Open[index],"; High[index]: ",High[index],"; Low[index]: ",Low[index], "; Close[index]: ",Close[index], "; time of index: ", TimeToStr(iTime(Symbol(),0,index),TIME_DATE|TIME_SECONDS));
 }

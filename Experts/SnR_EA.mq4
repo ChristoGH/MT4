@@ -11,18 +11,75 @@
 input double Lots          =0.1; // Trade size
 input double TrailingStop  =0; // 0 for NO trailing stop
 input double Slippage      =3;
-input double TakeProfit    =200; // 2000 for USDZAR
-input double StopLoss      =300; // Hard stop, 3000 for USDZAR, The stop loss is not MANAGED
+input double TakeProfit    =2000; // 2000 for USDZAR
+input double StopLoss      =3000; // Hard stop, 3000 for USDZAR, The stop loss is not MANAGED
 input int StartHour        =9; // Start strategy AFTER this hour
 input int StartMinute      =0;
 input int EndHour          =14; // Start strategy AFTER this hour
 input int EndMinute        =0;
 input int MaxNumberDayTrades = 1;
 input int SnR_HoursLookBack = 24;
+// = values for HLineCreate from https://docs.mql4.com/constants/objectconstants/enum_object/obj_hline 
+input string          InpName="HLine";     // Line name
+input int             InpPrice=25;         // Line price, %
+input color           InpColor=clrRed;     // Line color
+input ENUM_LINE_STYLE InpStyle=STYLE_DASH; // Line style
+input int             InpWidth=1;          // Line width
+input bool            InpBack=false;       // Background line
+input bool            InpSelection=true;   // Highlight to move
+input bool            InpHidden=true;      // Hidden in the object list
+input long            InpZOrder=0;         // Priority for mouse click
+
 
 extern int EAMagic = 16384; //EA's magic number parameter
 
 
+// = This function was lifted from https://docs.mql4.com/constants/objectconstants/enum_object/obj_hline ============================================================
+bool HLineCreate(const long            chart_ID=0,        // chart's ID
+                 const string          name="HLine",      // line name
+                 const int             sub_window=0,      // subwindow index
+                 double                price=0,           // line price
+                 const color           clr=clrRed,        // line color
+                 const ENUM_LINE_STYLE style=STYLE_SOLID, // line style
+                 const int             width=1,           // line width
+                 const bool            back=false,        // in the background
+                 const bool            selection=true,    // highlight to move
+                 const bool            hidden=true,       // hidden in the object list
+                 const long            z_order=0)         // priority for mouse click
+  {
+//--- if the price is not set, set it at the current Bid price level
+   if(!price)
+      price=SymbolInfoDouble(Symbol(),SYMBOL_BID);
+//--- reset the error value
+   ResetLastError();
+//--- create a horizontal line
+   if(!ObjectCreate(chart_ID,name,OBJ_HLINE,sub_window,0,price))
+     {
+      Print(__FUNCTION__,
+            ": failed to create a horizontal line! Error code = ",GetLastError());
+      return(false);
+     }
+//--- set line color
+   ObjectSetInteger(chart_ID,name,OBJPROP_COLOR,clr);
+//--- set line display style
+   ObjectSetInteger(chart_ID,name,OBJPROP_STYLE,style);
+//--- set line width
+   ObjectSetInteger(chart_ID,name,OBJPROP_WIDTH,width);
+//--- display in the foreground (false) or background (true)
+   ObjectSetInteger(chart_ID,name,OBJPROP_BACK,back);
+//--- enable (true) or disable (false) the mode of moving the line by mouse
+//--- when creating a graphical object using ObjectCreate function, the object cannot be
+//--- highlighted and moved by default. Inside this method, selection parameter
+//--- is true by default making it possible to highlight and move the object
+   ObjectSetInteger(chart_ID,name,OBJPROP_SELECTABLE,selection);
+   ObjectSetInteger(chart_ID,name,OBJPROP_SELECTED,selection);
+//--- hide (true) or display (false) graphical object name in the object list
+   ObjectSetInteger(chart_ID,name,OBJPROP_HIDDEN,hidden);
+//--- set the priority for receiving the event of a mouse click in the chart
+   ObjectSetInteger(chart_ID,name,OBJPROP_ZORDER,z_order);
+//--- successful execution
+   return(true);
+  }
 
 // string var1;
 // double val;
@@ -50,6 +107,7 @@ void OnTick(void)
    datetime current_day_time =iTime(Symbol(),PERIOD_D1,0);  // The start time 00:00:00 of the CURRENT day
    datetime start_time=current_day_time+(60*60*StartHour)+(60*StartMinute);
    datetime end_time=current_day_time+(60*60*EndHour)+(60*EndMinute);
+   datetime localTime=TimeLocal();
    int          start_shift=iBarShift(Symbol(),PERIOD_M1,start_time-60);  // 
    int          day_shift=iBarShift(Symbol(),PERIOD_M1,current_day_time);  // Number of 'shifts' of the current bar type to the start of the day
    int          in_trade_shift_hi=iHighest(Symbol(),PERIOD_M1,MODE_HIGH,start_shift,1); // Number of shifts  from current bar to HIGHEST bar in trade window
@@ -106,8 +164,8 @@ if((in_trade_shift_hi==-1)||(!in_trade_window))
 period_low=iLow(Symbol(),PERIOD_M1,premarket_shift_lo);
 }
 
-//Print("current_day_time: ",TimeToStr(current_day_time,TIME_DATE|TIME_SECONDS),"; start_time: ",TimeToStr(start_time,TIME_DATE|TIME_SECONDS),"; end_time: ", "; end_time: ",TimeToStr(end_time,TIME_DATE|TIME_SECONDS),"; period_high: ", period_high, "; : ",period_low);
-//Print(" TimeLocal: ",TimeToStr(TimeLocal(),TIME_DATE|TIME_SECONDS), "; iHi: ",iHi, "; iLo: ",iLo,"; start_shift: ",start_shift, "; in_trade_window: ", in_trade_window, "; period_high: ", period_high, "; period_low: ",period_low);
+// Print("TimeLocal: ",TimeToStr(TimeLocal(),TIME_DATE|TIME_SECONDS), "; current_day_time: ",TimeToStr(current_day_time,TIME_DATE|TIME_SECONDS),"; start_time: ",TimeToStr(start_time,TIME_DATE|TIME_SECONDS),"; end_time: ", "; end_time: ",TimeToStr(end_time,TIME_DATE|TIME_SECONDS),"; period_high: ", period_high, "; : ",period_low);
+// Print(" TimeLocal: ",TimeToStr(TimeLocal(),TIME_DATE|TIME_SECONDS), "; iHi: ",iHi, "; iLo: ",iLo,"; start_shift: ",start_shift, "; in_trade_window: ", in_trade_window, "; period_high: ", period_high, "; period_low: ",period_low);
 
 
 
@@ -129,7 +187,7 @@ double fractal;
 datetime current_time= iTime(Symbol(),PERIOD_M1,0);
 double time_diff=0;
 
-while(count_bars >0&&resistance==0&&time_diff<SnR_HoursLookBack)
+while(count_bars >0&&minimum_resistance==0&&time_diff<SnR_HoursLookBack)
   {  
     index =   total_bars - count_bars+0;  // Start at 1!
     time_diff=(current_time-iTime(Symbol(),0,index))/(60*60);
@@ -142,7 +200,7 @@ while(count_bars >0&&resistance==0&&time_diff<SnR_HoursLookBack)
         //Print(" index = ",index,"; count_bars: ",count_bars,"; Fractal = ",fractal, "; TimeToStr(iTime(Symbol(),0,index): ",TimeToStr(iTime(Symbol(),0,index),TIME_DATE|TIME_SECONDS));        
     }
     //----
-    if(fractal > 0 && High[index]>period_high) 
+    if((fractal > 0) && (High[index]>previous_high)) //period_high) 
         {
 
         if(minimum_resistance==0)
@@ -153,7 +211,11 @@ while(count_bars >0&&resistance==0&&time_diff<SnR_HoursLookBack)
         else
         {
         minimum_resistance = MathMin(High[index],minimum_resistance);
+        if (minimum_resistance==High[index])
+        {
         minimum_resistance_index=index;
+        }
+        //minimum_resistance_index=index;
         }
 //         Print(" period_high: ",period_high," time_diff: ",time_diff, "; minimum_resistance_index: ",minimum_resistance_index,   "; minimum_resistance: ",minimum_resistance,"; time of resistance: ", TimeToStr(iTime(Symbol(),0,minimum_resistance_index),TIME_DATE|TIME_SECONDS));                
         }
@@ -162,7 +224,6 @@ while(count_bars >0&&resistance==0&&time_diff<SnR_HoursLookBack)
    }
 resistance=minimum_resistance;
 resistance_index=minimum_resistance_index;
-Print(" time_diff: ",time_diff, "; minimum_resistance_index: ",resistance_index,   "; resistance: ",resistance,"; time of resistance: ", TimeToStr(iTime(Symbol(),0,minimum_resistance_index),TIME_DATE|TIME_SECONDS));
 //===============================================================================================================
 // Find the HIGHEST appropriate support and its index  (the NEXT support to be tested):
 count_bars=total_bars;    
@@ -170,14 +231,14 @@ double maximum_support=0;
 int maximum_support_index=0;
 int support_index=0;
 time_diff=0;
-while(count_bars >0&&support==0&&time_diff<SnR_HoursLookBack)
+while(count_bars >0&&maximum_support==0&&time_diff<SnR_HoursLookBack)
   {  
     index =   total_bars - count_bars+0;  // Start at 1!
     time_diff=(current_time-iTime(Symbol(),0,index))/(60*60);
 //  The following starts iterating BACKWARDS from the before most recent bar:    
     fractal = iFractals(NULL, 0, MODE_LOWER, index);
     
-    if(fractal > 0 && Low[index]<period_low) 
+    if((fractal > 0) && (Low[index]<previous_low)) //period_low) 
         {
         if(maximum_support==0)
         {
@@ -187,7 +248,11 @@ while(count_bars >0&&support==0&&time_diff<SnR_HoursLookBack)
         else
         {
         maximum_support=MathMax(Low[index],maximum_support);
+        //maximum_support_index=index;
+        if (maximum_support==Low[index])
+        {
         maximum_support_index=index;
+        }        
         }
         //support = Low[index];
         //Print(" TimeLocal: ",TimeToStr(TimeLocal(),TIME_DATE|TIME_SECONDS), "; fractal: ", fractal, "; support: ", support, "; index: ",index);
@@ -196,8 +261,24 @@ while(count_bars >0&&support==0&&time_diff<SnR_HoursLookBack)
    }
 support=maximum_support;
 support_index=maximum_support_index;
-Print(" time_diff: ",time_diff, "; maximum_support_index: ",support_index,   "; support: ",support,"; time of support: ", TimeToStr(iTime(Symbol(),0,maximum_support_index),TIME_DATE|TIME_SECONDS));
+
+
+
 // Print(" TimeLocal: ",TimeToStr(TimeLocal(),TIME_DATE|TIME_SECONDS), "; time of resistance: ", TimeToStr(iTime(Symbol(),0,minimum_resistance_index),TIME_DATE|TIME_SECONDS), "; time of support: ", TimeToStr(iTime(Symbol(),0,maximum_support_index),TIME_DATE|TIME_SECONDS), "; minimum_resistance_index: ",minimum_resistance_index,"; maximum_support_index: ", maximum_support_index);
+// ======================================================================================
+
+//resistance=iCustom(NULL,0,"Support and Resistance (Barry)",0,0);
+//support=iCustom(NULL,0,"Support and Resistance (Barry)",1,0);
+//if(!HLineCreate(0,InpName,0,support,InpColor,InpStyle,InpWidth,InpBack,
+//      InpSelection,InpHidden,InpZOrder))
+//     {
+//      return;
+//     }
+
+
+// Print(" time_diff: ",time_diff, "; maximum_support_index: ",support_index,   "; support: ",support,"; time of support: ", TimeToStr(iTime(Symbol(),0,maximum_support_index),TIME_DATE|TIME_SECONDS));
+// Print(" time_diff: ",time_diff, "; minimum_resistance_index: ",resistance_index,   "; resistance: ",resistance,"; time of resistance: ", TimeToStr(iTime(Symbol(),0,minimum_resistance_index),TIME_DATE|TIME_SECONDS));
+
  // ======================================================================================
  // Calculate here the number of completed trades for the CURRENT day and CURRENT sumbol.  Starting at the most recent trade it goes back until OrderCloseTime()<CurrentDay.
 int nDayTrades;
@@ -274,6 +355,7 @@ bool       valid_sell_trigger=false;
 //  There are no OPEN positions.
 //  We are inside our trade allowance for the day
 valid_sell_trigger=Ask>resistance && in_trade_window && previous_high<resistance && resistance>0 && symbol_total<1 && InTradeAllowance && Ask > period_high;
+valid_sell_trigger=Ask>resistance && in_trade_window && previous_high<resistance && resistance>0 && symbol_total<1 && InTradeAllowance;
 //  For a BUY, bid must be BELOW support..
 //  We must be in the trade window.
 //  The previous bar must have CLOSED ABOVE  the support.
@@ -281,6 +363,7 @@ valid_sell_trigger=Ask>resistance && in_trade_window && previous_high<resistance
 //  There are no OPEN positions.
 //  We are inside our trade allowance for the day
 valid_buy_trigger=Bid<support && in_trade_window && previous_low>support && support>0 && symbol_total<1 && InTradeAllowance && Bid < period_low;
+valid_buy_trigger=Bid<support && in_trade_window && previous_low>support && support>0 && symbol_total<1 && InTradeAllowance;
 
 //if((TimeLocal()-MathMod(TimeLocal(),60))<3)
 //{
@@ -312,10 +395,14 @@ valid_buy_trigger=Bid<support && in_trade_window && previous_low>support && supp
 //  Are we inside our predefined macimum number of trades (CLOSED positions) for the day.  If yes proceed.
    int          cnt,ticket;
    double    current_buy_stoploss=Bid-StopLoss*Point;
-   double    current_buy_takeprofit =Ask+TakeProfit*Point;
+   double    current_buy_takeprofit =Bid+TakeProfit*Point;
    double    current_sell_stoploss=Ask+StopLoss*Point;
-   double    current_sell_takeprofit =Bid-TakeProfit*Point;
+   double    current_sell_takeprofit =Ask-TakeProfit*Point;
    int          total=0;//,total;
+
+   Print("Symbol: ",Symbol(),"; Bid: ",Bid, "; Ask: ", Ask, "; Slippage: ",Slippage,"; current_sell_stoploss: ", current_sell_stoploss,"; current_sell_takeprofit: ",current_sell_takeprofit, "; current_buy_stoploss: ", current_buy_stoploss,"; current_buy_takeprofit: ",current_buy_takeprofit);
+   //Print(" TimeLocal: ",TimeToStr(TimeLocal(),TIME_DATE|TIME_SECONDS), ";Bid : ", Bid,  ";Ask : ", Ask, "; Time of High: ",TimeToStr(iTime(Symbol(),PERIOD_M1,in_trade_shift_hi),TIME_DATE|TIME_SECONDS), "; Time of Low: ",TimeToStr(iTime(Symbol(),PERIOD_M1,in_trade_shift_lo),TIME_DATE|TIME_SECONDS), "; previous_close: ",previous_close, "; period_high: ",period_high, "; period_low: ", period_low, "; support: ", support, "; resistance: ", resistance);
+
          
    if(valid_sell_trigger || valid_buy_trigger)
      {
@@ -331,7 +418,7 @@ valid_buy_trigger=Bid<support && in_trade_window && previous_low>support && supp
         {
         Print("SELL!");
         // int OrderSend (string symbol, int cmd, double volume, double price, int slippage, double stoploss,double takeprofit, string comment=NULL, int magic=0, datetime expiration=0, color arrow_color=CLR_NONE)
-         Print("Symbol: ",Symbol(),"; OPSELL: ",OP_SELL,"; Lots: ", Lots,"; Bid: ",Bid,"; Slippage: ",Slippage,"; stop loss: ", Bid-TakeProfit*Point,"; take profit: ",Bid-TakeProfit*Point,"AE Capital, S&R sample",16384,0);
+         Print("Symbol: ",Symbol(),"; OPSELL: ",OP_SELL,"; Lots: ", Lots,"; Bid: ",Bid,"; Slippage: ",Slippage,"; current_sell_stoploss: ", current_sell_stoploss,"; take current_sell_takeprofit: ",current_sell_takeprofit,"AE Capital, S&R sample",16384,0);
          Print(" TimeLocal: ",TimeToStr(TimeLocal(),TIME_DATE|TIME_SECONDS), ";Bid : ", Bid,  ";Ask : ", Ask, "; Time of High: ",TimeToStr(iTime(Symbol(),PERIOD_M1,in_trade_shift_hi),TIME_DATE|TIME_SECONDS), "; Time of Low: ",TimeToStr(iTime(Symbol(),PERIOD_M1,in_trade_shift_lo),TIME_DATE|TIME_SECONDS));         
          Print(" TimeLocal: ",TimeToStr(TimeLocal(),TIME_DATE|TIME_SECONDS),  "; previous_close: ",previous_close, "; period_high: ",period_high, "; period_low: ", period_low, "; support: ", support, "; resistance: ", resistance);         
          
@@ -349,7 +436,7 @@ valid_buy_trigger=Bid<support && in_trade_window && previous_low>support && supp
       if(valid_buy_trigger)
         {
         Print("BUY!");//---
-        Print("Symbol: ",Symbol(),"; OPSELL: ",OP_BUY,"; Lots: ", Lots,"; Ask: ",Ask,"; Slippage: ",Slippage,"; stop loss: ", Bid-TakeProfit*Point,"; take profit: ",Bid-TakeProfit*Point,"AE Capital, S&R sample",16384,0);
+        Print("Symbol: ",Symbol(),"; OPSELL: ",OP_BUY,"; Lots: ", Lots,"; Ask: ",Ask,"; Slippage: ",Slippage,"; stop loss: ", Bid+TakeProfit*Point,"; take profit: ",Bid-TakeProfit*Point,"AE Capital, S&R sample",16384,0);
          Print(" TimeLocal: ",TimeToStr(TimeLocal(),TIME_DATE|TIME_SECONDS), ";Bid : ", Bid,  ";Ask : ", Ask, "; Time of High: ",TimeToStr(iTime(Symbol(),PERIOD_M1,in_trade_shift_hi),TIME_DATE|TIME_SECONDS), "; Time of Low: ",TimeToStr(iTime(Symbol(),PERIOD_M1,in_trade_shift_lo),TIME_DATE|TIME_SECONDS));         
          Print(" TimeLocal: ",TimeToStr(TimeLocal(),TIME_DATE|TIME_SECONDS),  "; previous_close: ",previous_close, "; period_high: ",period_high, "; period_low: ", period_low, "; support: ", support, "; resistance: ", resistance);         
          
