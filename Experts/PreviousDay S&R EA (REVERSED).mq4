@@ -5,7 +5,6 @@
 //+------------------------------------------------------------------------------------------------------------------+
 #property copyright                                 "Christo Strydom"
 #property link                                         "christo.w.strydom@gmail.com"
-
 extern int EAMagic                                  = 17384; //EA's magic number parameter
 input double TakeProfit                            = 2000; // 2000 for USDZAR
 input double Lots                                     = 0.1; // Trade size
@@ -27,8 +26,6 @@ double resistance; // =iCustom(NULL,0,"Support and Resistance (Barry)",0,0);
 double support; // =iCustom(NULL,0,"Support and Resistance (Barry)",1,0);
 double previous_resistance;
 double previous_support;
-string      sell_comment="PreviousDay_EA_Resistance";
-string      buy_comment="PreviousDay_EA_Support";      
 
 // Input values for line drawing:
 input string          MidNightName="MidNight";     // Line name
@@ -36,121 +33,16 @@ input string          TradingDayStart="TradingDayStart";     // Line name
 input color           TradingDayStartColor=clrSteelBlue;     // Line color
 input string          TradingDayEnd="TradingDayEnd";     // Line name
 input color           TradingDayEndColor=clrSienna;     // Line color
-input int               InpDate=25;          // Event date, %
+input int             InpDate=25;          // Event date, %
 input color           InpColor=clrRed;     // Line color
-input color           SnRColor=clrYellow; //
 input ENUM_LINE_STYLE InpStyle=STYLE_DASH; // Line style
-input ENUM_LINE_STYLE SnRStyle=STYLE_DOT; // Line style
 input int             InpWidth=1;          // Line width
 input bool            InpBack=false;       // Background line
 input bool            InpSelection=true;   // Highlight to move
 input bool            InpHidden=true;      // Hidden in the object list
 input long            InpZOrder=0;         // Priority for mouse click
-input int              SnRwidth=1;           // line width 
-input bool            SnRback=false;        // in the background 
-input bool            SnRselection=true;    // highlight to move 
-input bool            SnRray_left=false;    // line's continuation to the left 
-input bool            SnRray_right=false;   // line's continuation to the right 
-input bool            SnRhidden=true;       // hidden in the object list 
-input long            SnRz_order=0;
 
-// =https://www.mql5.com/en/forum/300801=================================================================================================================================
-bool TrendCreate(const long            chart_ID=0,        // chart's ID 
-                 const string          name="TrendLine",  // line name 
-                 const int             sub_window=0,      // subwindow index 
-                 datetime              time1=0,           // first point time 
-                 double                price1=0,          // first point price 
-                 datetime              time2=0,           // second point time 
-                 double                price2=0,          // second point price 
-                 const color           clr=clrRed,        // line color 
-                 const ENUM_LINE_STYLE style=STYLE_SOLID, // line style 
-                 const int             width=1,           // line width 
-                 const bool            back=false,        // in the background 
-                 const bool            selection=true,    // highlight to move 
-                 const bool            ray_left=false,    // line's continuation to the left 
-                 const bool            ray_right=false,   // line's continuation to the right 
-                 const bool            hidden=true,       // hidden in the object list 
-                 const long            z_order=0)         // priority for mouse click 
-  { 
-//--- set anchor points' coordinates if they are not set 
-   ChangeTrendEmptyPoints(time1,price1,time2,price2); 
-//--- reset the error value 
-   ResetLastError(); 
-//--- create a trend line by the given coordinates 
-   if(!ObjectCreate(chart_ID,name,OBJ_TREND,sub_window,time1,price1,time2,price2)) 
-     { 
-      Print(__FUNCTION__, 
-            ": failed to create a trend line! Error code = ",GetLastError()); 
-      return(false); 
-     } 
-//--- set line color 
-   ObjectSetInteger(chart_ID,name,OBJPROP_COLOR,clr); 
-//--- set line display style 
-   ObjectSetInteger(chart_ID,name,OBJPROP_STYLE,style); 
-//--- set line width 
-   ObjectSetInteger(chart_ID,name,OBJPROP_WIDTH,width); 
-//--- display in the foreground (false) or background (true) 
-   ObjectSetInteger(chart_ID,name,OBJPROP_BACK,back); 
-//--- enable (true) or disable (false) the mode of moving the line by mouse 
-//--- when creating a graphical object using ObjectCreate function, the object cannot be 
-//--- highlighted and moved by default. Inside this method, selection parameter 
-//--- is true by default making it possible to highlight and move the object 
-   ObjectSetInteger(chart_ID,name,OBJPROP_SELECTABLE,selection); 
-   ObjectSetInteger(chart_ID,name,OBJPROP_SELECTED,selection); 
-//--- enable (true) or disable (false) the mode of continuation of the line's display to the left 
-   ObjectSetInteger(chart_ID,name,OBJPROP_RAY_LEFT,ray_left); 
-//--- enable (true) or disable (false) the mode of continuation of the line's display to the right 
-   ObjectSetInteger(chart_ID,name,OBJPROP_RAY_RIGHT,ray_right); 
-//--- hide (true) or display (false) graphical object name in the object list 
-   ObjectSetInteger(chart_ID,name,OBJPROP_HIDDEN,hidden); 
-//--- set the priority for receiving the event of a mouse click in the chart 
-   ObjectSetInteger(chart_ID,name,OBJPROP_ZORDER,z_order); 
-  // ObjectSetText(name, name, 8, "Arial", clr);
-//--- successful execution 
-   return(true); 
-  } 
 
-// =TrendDelete=================================================================================================================================
-bool TrendDelete(const long   chart_ID=0,       // chart's ID 
-                 const string name="TrendLine") // line name 
-  { 
-//--- reset the error value 
-   ResetLastError(); 
-//--- delete a trend line 
-   if(!ObjectDelete(chart_ID,name)) 
-     { 
-      Print(__FUNCTION__, 
-            ": failed to delete a trend line! Error code = ",GetLastError()); 
-      return(false); 
-     } 
-//--- successful execution 
-   return(true); 
-  } 
-
-void ChangeTrendEmptyPoints(datetime &time1,double &price1, 
-                            datetime &time2,double &price2) 
-  { 
-//--- if the first point's time is not set, it will be on the current bar 
-   if(!time1) 
-      time1=TimeCurrent(); 
-//--- if the first point's price is not set, it will have Bid value 
-   if(!price1) 
-      price1=SymbolInfoDouble(Symbol(),SYMBOL_BID); 
-//--- if the second point's time is not set, it is located 9 bars left from the second one 
-   if(!time2) 
-     { 
-      //--- array for receiving the open time of the last 10 bars 
-      datetime temp[10]; 
-      CopyTime(Symbol(),Period(),time1,10,temp); 
-      //--- set the second point 9 bars left from the first one 
-      time2=temp[0]; 
-     } 
-//--- if the second point's price is not set, it is equal to the first point's one 
-   if(!price2) 
-      price2=price1; 
-  } 
-  
-// ==================================================================================================================================
 bool VLineCreate(const long            chart_ID=0,        // chart's ID
                  const string          name="VLine",      // line name
                  const int             sub_window=0,      // subwindow index
@@ -346,7 +238,6 @@ void OnTick(void)
    double    previous_day_high         = iHigh(Symbol(),PERIOD_D1,1);
    double    previous_day_low          = iLow(Symbol(),PERIOD_D1,1);
    
-   
    if(LastActiontime!=Time[0]){
       //Code to execute once in the bar
       // Print("This code is executed only once in the bar started ",Time[0], TimeToStr(LastActiontime,TIME_DATE|TIME_SECONDS));
@@ -354,47 +245,7 @@ void OnTick(void)
       VLineDelete(0,MidNightName);
       VLineDelete(0,TradingDayStart);
       VLineDelete(0,TradingDayEnd);
-      TrendDelete(0,"Resistance"+StratHigh); 
-      TrendDelete(0,"Support"+StratLow);       
-      //ChartRedraw();
-      if(!TrendCreate(0,        // chart's ID 
-                 "Resistance"+StratHigh,  // line name 
-                 0,      // subwindow index 
-                 PreviousDay,           // first point time 
-                 StratHigh,          // first point price 
-                 end_time,           // second point time 
-                 StratHigh,          // second point price 
-                 SnRColor,        // line color 
-                 SnRStyle, // line style 
-                 SnRwidth,           // line width 
-                 SnRback,        // in the background 
-                 SnRselection,    // highlight to move 
-                 SnRray_left,    // line's continuation to the left 
-                 SnRray_right,   // line's continuation to the right 
-                 SnRhidden,       // hidden in the object list 
-                 SnRz_order))
-                 {
-                 return;
-                 }
-      if(!TrendCreate(0,        // chart's ID 
-                 "Support"+StratLow,  // line name 
-                 0,      // subwindow index 
-                 PreviousDay,           // first point time 
-                 StratLow,          // first point price 
-                 end_time,           // second point time 
-                 StratLow,          // second point price 
-                 SnRColor,        // line color 
-                 SnRStyle, // line style 
-                 SnRwidth,           // line width 
-                 SnRback,        // in the background 
-                 SnRselection,    // highlight to move 
-                 SnRray_left,    // line's continuation to the left 
-                 SnRray_right,   // line's continuation to the right 
-                 SnRhidden,       // hidden in the object list 
-                 SnRz_order))
-                 {
-                 return;
-                 }                 
+      //ChartRedraw();      
       if(!VLineCreate(0,MidNightName,0,current_day_time,InpColor,InpStyle,InpWidth,InpBack,InpSelection,InpHidden,InpZOrder))
       {
       return;
@@ -413,7 +264,6 @@ void OnTick(void)
      // ChartRedraw();      
       Print("This code is executed only once in the bar started ",Time[0], TimeToStr(LastActiontime,TIME_DATE|TIME_SECONDS));      
    }   
-
 // ====================================================================================================================
 // Here we determine if we are in the tradinbg window:   
 if(TimeLocal()>=start_time&&TimeLocal()<=end_time)
@@ -604,14 +454,14 @@ if(in_trade_window||after_trade_window)
          //  We are inside our trade allowance for the day
          Print("Local Time: ", TimeToStr(TimeLocal(),TIME_DATE|TIME_SECONDS), "; symbol_total: ",symbol_total,"; InTradeAllowance: ",InTradeAllowance);
          
-         valid_sell_trigger=Ask>StratHigh && in_trade_window && previous_high<StratHigh && StratHigh>0 && symbol_total<1 && InTradeAllowance;// && Ask > period_high;
+         valid_buy_trigger=Ask>StratHigh && in_trade_window && previous_high<StratHigh && StratHigh>0 && symbol_total<1 && InTradeAllowance;// && Ask > period_high;
          //  For a BUY, bid must be BELOW support..
          //  We must be in the trade window.
          //  The previous bar must have CLOSED ABOVE  the support.
          //  Support is > 0.
          //  There are no OPEN positions.
          //  We are inside our trade allowance for the day
-         valid_buy_trigger=Bid<StratLow && in_trade_window && previous_low>StratLow  && StratLow>0 && symbol_total<1 && InTradeAllowance;// && Bid < period_low;
+         valid_sell_trigger=Bid<StratLow && in_trade_window && previous_low>StratLow  && StratLow>0 && symbol_total<1 && InTradeAllowance;// && Bid < period_low;
          
         // int          cnt,ticket;
       
@@ -630,9 +480,9 @@ if(in_trade_window||after_trade_window)
            if(valid_sell_trigger)
               {
               //Print("SELL!");
-               Print("valid_sell_trigger: ", valid_sell_trigger,"; Ask>StratHigh: ",Ask>StratHigh,"; in_trade_window: ",in_trade_window,"; previous_high<StratHigh: ", previous_high<StratHigh);   
+               Print("valid_sell_trigger: ", valid_sell_trigger,"; Bid<StratLow: ",Bid<StratLow,"; in_trade_window: ",in_trade_window,"; previous_low>StratLow: ", previous_low>StratLow);   
       
-               Print("Symbol: ",Symbol(),"; OPSELL: ",OP_SELL,"; Lots: ", Lots,"; Bid: ",Bid,"; Slippage: ",Slippage,"; stop loss: ", current_sell_stoploss,"; take profit: ",current_sell_takeprofit,sell_comment,EAMagic,0);
+               Print("Symbol: ",Symbol(),"; OPSELL: ",OP_SELL,"; Lots: ", Lots,"; Bid: ",Bid,"; Slippage: ",Slippage,"; stop loss: ", current_sell_stoploss,"; take profit: ",current_sell_takeprofit,"AE Capital, S&R sample",EAMagic,0);
                ticket=OrderSend(Symbol(),OP_SELL,Lots,Bid,Slippage,current_sell_stoploss,current_sell_takeprofit,"AE Capital, S&R sample",EAMagic,0,Red);
                if(ticket>0)
                  {
@@ -646,9 +496,9 @@ if(in_trade_window||after_trade_window)
             //--- check for short position (SELL) possibility
          if( valid_buy_trigger)
               {
-              Print("Symbol: ",Symbol(),"; OP_BUY: ",OP_BUY,"; Lots: ", Lots,"; Ask: ",Ask,"; Slippage: ",Slippage,"; stop loss: ", current_sell_stoploss,"; take profit: ",current_sell_takeprofit,buy_comment,EAMagic,0);
+              Print("Symbol: ",Symbol(),"; OP_BUY: ",OP_BUY,"; Lots: ", Lots,"; Ask: ",Ask,"; Slippage: ",Slippage,"; stop loss: ", current_buy_stoploss,"; take profit: ",current_buy_takeprofit,"AE Capital, S&R sample",EAMagic,0);
       
-              Print("valid_buy_trigger: ", valid_buy_trigger,"; Bid<StratLow: ",Bid<StratLow,"; in_trade_window: ",in_trade_window,"; previous_low>StratLow: ", previous_low>StratLow);
+              Print("valid_buy_trigger: ", valid_buy_trigger,"; Ask>StratHigh: ", Ask>StratHigh,"; in_trade_window: ",in_trade_window,"; previous_high<StratHigh: ",previous_high<StratHigh);
               
               ticket=OrderSend(Symbol(),OP_BUY,Lots,Ask,Slippage,current_buy_stoploss,current_buy_takeprofit,"AE Capital, S&R sample",EAMagic,0,Green);
               //--- ticket=OrderSend(Symbol(),OP_SELL,Lots,Bid,3,0,Bid-TakeProfit*Point,"S&R sample",16384,0,Red);

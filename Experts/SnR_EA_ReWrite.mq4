@@ -32,10 +32,10 @@ extern int EAMagic = 16384; //EA's magic number parameter
 
 
 // Input values for line drawing:
-input string          MidNightName="MidNight";     // Line name
-input string          TradingDayStart="TradingDayStart";     // Line name
+input string          MidNightName="SnR MidNight";     // Line name
+input string          TradingDayStart="SnR TradingDayStart";     // Line name
 input color           TradingDayStartColor=clrSteelBlue;     // Line color
-input string          TradingDayEnd="TradingDayEnd";     // Line name
+input string          TradingDayEnd="SnR TradingDayEnd";     // Line name
 input color           TradingDayEndColor=clrSienna;     // Line color
 input int               InpDate=25;          // Event date, %
 input color           InpColor=clrRed;     // Line color
@@ -82,6 +82,65 @@ string                  StrategyName="SnR_EA";
 
 void OnTick(void)
   {
+  
+  
+  if(EveryDayActionTime!=iTime(Symbol(),PERIOD_D1,0))
+  {
+      TimeOffset                = TimeCurrent()-TimeLocal(); // The difference between Local time and server time
+      current_day               = iTime(Symbol(),PERIOD_D1,0)+TimeOffset;  // The start time 00:00:00 of the CURRENT day
+      tomorrow                   = current_day+(60*60*24);
+      start_time                 = current_day+(60*60*Trade_StartHour)+(60*Trade_StartMinute); // Start time of the current TRADING day;
+      end_time                  = current_day+(60*60*Trade_EndHour)+(60*Trade_EndMinute); // End time of the current TRADING day;
+       
+      VLineDelete(0,MidNightName);
+      VLineDelete(0,TradingDayStart);
+      VLineDelete(0,TradingDayEnd);
+      if(!VLineCreate(0,MidNightName,0,current_day,IBMidNightColor,InpStyle,InpWidth,InpBack,InpSelection,InpHidden,InpZOrder))
+         {
+         return;
+         }
+      if(!VLineCreate(0,TradingDayStart,0,start_time,IBTradingDayStartColor,InpStyle,InpWidth,InpBack,InpSelection,InpHidden,InpZOrder))
+         {
+         return;
+         }
+      if(!VLineCreate(0,TradingDayEnd,0,end_time,IBTradingDayEndColor,InpStyle,InpWidth,InpBack,InpSelection,InpHidden,InpZOrder))
+         {
+         return;
+         }
+      EveryDayActionTime = iTime(Symbol(),PERIOD_D1,0);      
+  }
+  
+  //  This code section runs at the start of every bar:
+   if(EveryLastActiontime!=Time[0]){
+      
+      if(Time[0]>=start_time&&Time[0]<end_time)
+       in_trade_window=true;
+      else
+       in_trade_window=false;
+      
+      //  Define AFTER trade window, CLOSE ALL positions:    
+      if((Time[0]>=end_time)&&(Time[0]<tomorrow))
+       after_trade_window=true;
+      else
+       after_trade_window=false;      
+      
+      //start_shift=iBarShift(Symbol(),PERIOD_M1,start_time-60);  // Shift in 1 Minute bars to the start start of the TRADING day
+      //day_shift=iBarShift(Symbol(),PERIOD_M1,current_day);  // Number of 1 minute 'shifts' of the current bar type to the start of the CURRENT day
+      //in_trade_shift_hi=iHighest(Symbol(),PERIOD_M1,MODE_HIGH,start_shift,1); // Number of shifts  from current bar to HIGHEST bar in trade window
+      //in_trade_shift_lo=iLowest(Symbol(),PERIOD_M1,MODE_LOW,start_shift,1); // Number of shifts  from current bar to LOWEST bar in trade window
+      //premarket_shift_hi=iHighest(Symbol(),PERIOD_M1,MODE_HIGH,day_shift,start_shift); // Number of shifts from current bar to HIGHEST bar in pre market window
+      //premarket_shift_lo=iLowest(Symbol(),PERIOD_M1,MODE_LOW,day_shift,start_shift); //  Number of shifts from current bar to LOWEST bar in pre market window
+      //IB_StartTime = current_day + IB_StartHour * 60 *60+IB_EndMinute*60;
+      //IB_EndTime = current_day + IB_EndHour * 60 *60+IB_EndMinute*60;   
+      //Code to execute once in the bar
+      // Print("This code is executed only once in the bar started ",Time[0], TimeToStr(LastActiontime,TIME_DATE|TIME_SECONDS));
+      EveryLastActiontime=Time[0];
+      //ChartRedraw();
+     // VLineDelete(0,MidNightName);
+     // ChartRedraw();      
+      Print("This code is executed only once in the bar started ",Time[0], "; ", TimeToStr(EveryLastActiontime,TIME_DATE|TIME_SECONDS), "; TimeLocal: ", TimeLocal());      
+   }   
+ 
    datetime current_day_time =iTime(Symbol(),PERIOD_D1,0);  // The start time 00:00:00 of the CURRENT day
    datetime start_time=current_day_time+(60*60*StartHour)+(60*StartMinute);
    datetime end_time=current_day_time+(60*60*EndHour)+(60*EndMinute);
@@ -103,7 +162,7 @@ void OnTick(void)
    double    previous_high= iHigh(Symbol(),PERIOD_M1,1);
    double    previous_low= iLow(Symbol(),PERIOD_M1,1);         
    bool       in_trade_window=false;
-//   bool       after_trade_window=false;
+   bool       after_trade_window=false;
    bool       InTradeAllowance=true;  // InTradeAllowance is set to true.  It will only be set false once nDayTrades>=MaxNumberDayTrades
    int          cnt;
    int          ticket=0;
@@ -113,6 +172,11 @@ void OnTick(void)
    double   minimum_resistance=0;
    double   resistance=0;
    int         minimum_resistance_index=0;
+   
+   TimeOffset                = TimeCurrent()-TimeLocal(); // The difference between Local time and server time
+   current_day               =  iTime(Symbol(),PERIOD_D1,0)+TimeOffset;  // The start time 00:00:00 of the CURRENT day
+   previous_day             = iTime(Symbol(),PERIOD_D1,1)+TimeOffset;
+   
    
   //===================================================================================================
   //  Define in_trade_window, a boolean operator which is true only if we are inside the hours defined by StartHour and EndHour
@@ -126,34 +190,8 @@ void OnTick(void)
 //int result =trade_window(start_time,end_time);
 
 
-   
-   if(EveryLastActiontime!=Time[0]){
-      //Code to execute once in the bar
-      // Print("This code is executed only once in the bar started ",Time[0], TimeToStr(LastActiontime,TIME_DATE|TIME_SECONDS));
-      EveryLastActiontime=Time[0];
-      VLineDelete(0,MidNightName);
-      VLineDelete(0,TradingDayStart);
-      VLineDelete(0,TradingDayEnd);
-      if(!VLineCreate(0,MidNightName,0,current_day_time,InpColor,InpStyle,InpWidth,InpBack,InpSelection,InpHidden,InpZOrder))
-      {
-      return;
-      }
-      if(!VLineCreate(0,TradingDayStart,0,start_time,TradingDayStartColor,InpStyle,InpWidth,InpBack,InpSelection,InpHidden,InpZOrder))
-      {
-      return;
-      }
-      if(!VLineCreate(0,TradingDayEnd,0,end_time,TradingDayEndColor,InpStyle,InpWidth,InpBack,InpSelection,InpHidden,InpZOrder))
-      {
-      return;
-      }
-      //ChartRedraw();
-     // VLineDelete(0,MidNightName);
-     // ChartRedraw();      
-      Print("This code is executed only once in the bar started ",Time[0], TimeToStr(EveryLastActiontime,TIME_DATE|TIME_SECONDS));      
-   }   
-
     
-   if(trade_window_fn(start_time, end_time))
+   if(in_trade_window)
    {
    
       // =========================================================================================================================================
@@ -251,16 +289,25 @@ void OnTick(void)
       }
       
    
-      if((in_trade_shift_hi!=-1)) 
+      if((in_trade_shift_hi!=-1)&&(in_trade_window||after_trade_window)) 
       {
       period_high=iHigh(Symbol(),PERIOD_M1,in_trade_shift_hi);
       } 
       
-
-      if((in_trade_shift_lo!=-1))
+      if((in_trade_shift_hi==-1)||(!in_trade_window)) 
+      {
+      period_high=iHigh(Symbol(),PERIOD_M1,premarket_shift_hi);
+      }
+      
+      if((in_trade_shift_lo!=-1)||(in_trade_window||after_trade_window))
       {
       period_low=iLow(Symbol(),PERIOD_M1,in_trade_shift_lo);
       } 
+      
+      if((in_trade_shift_hi==-1)||(!in_trade_window)) 
+      {
+      period_low=iLow(Symbol(),PERIOD_M1,premarket_shift_lo);
+      }
       
       // Print("TimeLocal: ",TimeToStr(TimeLocal(),TIME_DATE|TIME_SECONDS), "; current_day_time: ",TimeToStr(current_day_time,TIME_DATE|TIME_SECONDS),"; start_time: ",TimeToStr(start_time,TIME_DATE|TIME_SECONDS),"; end_time: ", "; end_time: ",TimeToStr(end_time,TIME_DATE|TIME_SECONDS),"; period_high: ", period_high, "; : ",period_low);
       // Print(" TimeLocal: ",TimeToStr(TimeLocal(),TIME_DATE|TIME_SECONDS), "; iHi: ",iHi, "; iLo: ",iLo,"; start_shift: ",start_shift, "; in_trade_window: ", in_trade_window, "; period_high: ", period_high, "; period_low: ",period_low);
@@ -504,7 +551,7 @@ void OnTick(void)
                        }
                     }
                  }
-                 if (!trade_window_fn(start_time, end_time)){              
+                 if (after_trade_window){              
                    ticket=OrderClose(OrderTicket(),Lots,Bid,Slippage,Red);
                    if(ticket>0)
                      {
@@ -542,7 +589,7 @@ void OnTick(void)
                        }
                     }
                  }
-               if (!trade_window_fn(start_time, end_time)){
+               if (after_trade_window){
                  ticket = OrderClose(OrderTicket(),Lots,Ask,Slippage,Red);
                  if(ticket>0)
                    {
