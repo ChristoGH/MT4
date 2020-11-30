@@ -6,6 +6,7 @@
 #property copyright "Copyright 2020, MetaQuotes Software Corp."
 #property link      "https://www.mql5.com"
 #property strict
+#include <stdlib.mqh>
 color           IBMidNightColor=clrMaroon; //
 color           IBHighColor=clrGreenYellow;
 color           IBLowColor=clrGreenYellow;
@@ -36,7 +37,7 @@ bool            SnRray_left=false;    // line's continuation to the left
 bool            SnRray_right=false;   // line's continuation to the right 
 bool            SnRhidden=true;       // hidden in the object list 
 long            SnRz_order=0;
-
+extern bool removeFromThisChartOnly = true;
 //+------------------------------------------------------------------+
 //| defines                                                          |
 //+------------------------------------------------------------------+
@@ -96,7 +97,29 @@ long            SnRz_order=0;
 //                    {
 //                    return;
 //                    }                
-                     
+
+
+
+void RemoveAllOrders(const string MyOrderComment){
+   for(int i = OrdersTotal() - 1; i >= 0 ; i--){
+      OrderSelect(i,SELECT_BY_POS);
+      if((OrderSymbol() != Symbol()) && (OrderComment()!=MyOrderComment)) continue;
+      double price = MarketInfo(OrderSymbol(),MODE_ASK);
+      if(OrderType() == OP_BUY) price = MarketInfo(OrderSymbol(),MODE_BID);
+      if(OrderType() == OP_BUY || OrderType() == OP_SELL){
+         OrderClose(OrderTicket(), OrderLots(),price,5);
+      }else{
+         OrderDelete(OrderTicket());
+      }
+      Sleep(100);
+      int error = GetLastError();
+      if(error > 0)
+         Print("Unanticipated error: ", ErrorDescription(error));
+      RefreshRates();
+   }
+}
+
+
 bool trade_window_fn(datetime start_time_input, datetime end_time_input){
    if(Time[0]>=start_time_input&&Time[0]<end_time_input)
          return(true);

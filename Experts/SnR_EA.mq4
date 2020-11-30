@@ -29,7 +29,8 @@ input int             InpPrice=25;         // Line price, %
 datetime             EveryLastActiontime;
 datetime             TradeWindowLastActiontime;
 extern int EAMagic = 16384; //EA's magic number parameter
-
+string      sell_comment="SnREA_Resistance";
+string      buy_comment="SnRBalanceEA_Support";   
 
 // Input values for line drawing:
 input string          MidNightName="MidNight";     // Line name
@@ -436,7 +437,7 @@ void OnTick(void)
                      Print(" TimeLocal: ",TimeToStr(TimeLocal(),TIME_DATE|TIME_SECONDS), ";Bid : ", Bid,  ";Ask : ", Ask, "; Time of High: ",TimeToStr(iTime(Symbol(),PERIOD_M1,in_trade_shift_hi),TIME_DATE|TIME_SECONDS), "; Time of Low: ",TimeToStr(iTime(Symbol(),PERIOD_M1,in_trade_shift_lo),TIME_DATE|TIME_SECONDS));         
                      Print(" TimeLocal: ",TimeToStr(TimeLocal(),TIME_DATE|TIME_SECONDS),  "; previous_close: ",previous_close, "; period_high: ",period_high, "; period_low: ", period_low, "; support: ", support, "; resistance: ", resistance);         
                      
-                     ticket=OrderSend(Symbol(),OP_SELL,Lots,Bid,Slippage,current_sell_stoploss,current_sell_takeprofit,"AE Capital, S&R sample",16384,0,Red);
+                     ticket=OrderSend(Symbol(),OP_SELL,Lots,Bid,Slippage,current_sell_stoploss,current_sell_takeprofit,sell_comment,EAMagic,0,Red);
                      if(ticket>0)
                        {
                         if(OrderSelect(ticket,SELECT_BY_TICKET,MODE_TRADES))
@@ -454,7 +455,7 @@ void OnTick(void)
                      Print(" TimeLocal: ",TimeToStr(TimeLocal(),TIME_DATE|TIME_SECONDS), ";Bid : ", Bid,  ";Ask : ", Ask, "; Time of High: ",TimeToStr(iTime(Symbol(),PERIOD_M1,in_trade_shift_hi),TIME_DATE|TIME_SECONDS), "; Time of Low: ",TimeToStr(iTime(Symbol(),PERIOD_M1,in_trade_shift_lo),TIME_DATE|TIME_SECONDS));         
                      Print(" TimeLocal: ",TimeToStr(TimeLocal(),TIME_DATE|TIME_SECONDS),  "; previous_close: ",previous_close, "; period_high: ",period_high, "; period_low: ", period_low, "; support: ", support, "; resistance: ", resistance);         
                      
-                    ticket=OrderSend(Symbol(),OP_BUY,Lots,Ask,Slippage,current_buy_stoploss,current_buy_takeprofit,"AE Capital, S&R sample",16384,0,Green);
+                    ticket=OrderSend(Symbol(),OP_BUY,Lots,Ask,Slippage,current_buy_stoploss,current_buy_takeprofit,buy_comment,EAMagic,0,Green);
                     //--- ticket=OrderSend(Symbol(),OP_SELL,Lots,Bid,3,0,Bid-TakeProfit*Point,"S&R sample",16384,0,Red);
                      if(ticket>0)
                        {
